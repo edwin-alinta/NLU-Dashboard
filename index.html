@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NLU Intent Analytics Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&family=Bitter:wght@400;500;600&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --flame-orange: #FF6100;
+            --electric-blue: #196CFF;
+            --solar-yellow: #FFD218;
+            --true-white: #FFFFFF;
+        }
+
+        body {
+            font-family: 'Open Sans', Arial, sans-serif;
+        }
+
+        h1,
+        h2,
+        h3 {
+            font-family: 'Bitter', serif;
+        }
+    </style>
+</head>
+
+<body class="bg-white text-gray-900 min-h-screen">
+    <div class="container mx-auto p-6">
+        <!-- Header -->
+        <header class="mb-8 border-b-4 pb-6" style="border-color: #FF6100;">
+            <h1 class="text-5xl font-bold mb-2" style="color: #196CFF;">Genesys NLU Intent Analytics</h1>
+            <p class="text-gray-600 text-lg">Upload your Excel/CSV file to analyze intent recognition performance</p>
+        </header>
+
+        <!-- File Upload Section -->
+        <div class="bg-gray-50 rounded-lg p-6 mb-8 border-2 border-dashed" style="border-color: #196CFF;">
+            <div class="flex items-center justify-center">
+                <label for="fileInput"
+                    class="cursor-pointer text-white font-semibold py-3 px-8 rounded-lg transition hover:opacity-90"
+                    style="background-color: #FF6100;">
+                    <span id="uploadText">📁 Choose Excel/CSV File</span>
+                    <input type="file" id="fileInput" accept=".xlsx,.xls,.csv,.json" class="hidden">
+                </label>
+            </div>
+            <div id="fileInfo" class="mt-4 text-center text-gray-600 hidden"></div>
+            <div id="errorMessage" class="mt-4 text-center hidden" style="color: #FF6100;"></div>
+        </div>
+
+        <!-- Session-Level KPIs (per caller call/session) -->
+        <div id="sessionCards" class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4 hidden">
+            <div class="bg-white rounded-lg p-6 shadow-lg border-t-4" style="border-color: #196CFF;">
+                <h3 class="text-gray-600 text-sm mb-2 font-semibold">Total Sessions</h3>
+                <p id="totalSessions" class="text-4xl font-bold" style="color: #196CFF;">0</p>
+            </div>
+            <div class="bg-white rounded-lg p-6 shadow-lg border-t-4" style="border-color: #10B981;">
+                <h3 class="text-gray-600 text-sm mb-2 font-semibold">Resolved Sessions</h3>
+                <p id="resolvedSessions" class="text-4xl font-bold" style="color: #10B981;">0%</p>
+            </div>
+            <div class="bg-white rounded-lg p-6 shadow-lg border-t-4" style="border-color: #FF6100;">
+                <h3 class="text-gray-600 text-sm mb-2 font-semibold">Escalated / Unresolved</h3>
+                <p id="unresolvedSessions" class="text-4xl font-bold" style="color: #FF6100;">0%</p>
+            </div>
+            <div class="bg-white rounded-lg p-6 shadow-lg border-t-4" style="border-color: #196CFF;">
+                <h3 class="text-gray-600 text-sm mb-2 font-semibold">Avg Turns / Session</h3>
+                <p id="avgTurns" class="text-4xl font-bold" style="color: #196CFF;">0</p>
+            </div>
+        </div>
+
+        <!-- Summary Cards (intent-guess level) -->
+        <div id="summaryCards" class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8 hidden">
+            <div class="bg-white rounded-lg p-6 shadow-lg border-t-4" style="border-color: #196CFF;">
+                <h3 class="text-gray-600 text-sm mb-2 font-semibold">Bot Guess Accuracy</h3>
+                <p id="guessAccuracy" class="text-4xl font-bold" style="color: #196CFF;">0%</p>
+            </div>
+            <div class="bg-white rounded-lg p-6 shadow-lg border-t-4" style="border-color: #10B981;">
+                <h3 class="text-gray-600 text-sm mb-2 font-semibold">High Confidence (&ge;30%)</h3>
+                <p id="recognizedIntents" class="text-4xl font-bold" style="color: #10B981;">0</p>
+            </div>
+            <div class="bg-white rounded-lg p-6 shadow-lg border-t-4" style="border-color: #FFD218;">
+                <h3 class="text-gray-600 text-sm mb-2 font-semibold">Low Confidence (&lt;30%)</h3>
+                <p id="lowConfidence" class="text-4xl font-bold" style="color: #FFD218;">0</p>
+            </div>
+            <div class="bg-white rounded-lg p-6 shadow-lg border-t-4" style="border-color: #FF6100;">
+                <h3 class="text-gray-600 text-sm mb-2 font-semibold">No Match / No Input Turns</h3>
+                <p id="missingIntents" class="text-4xl font-bold" style="color: #FF6100;">0</p>
+            </div>
+        </div>
+
+        <!-- Charts Grid -->
+        <div id="chartsContainer" class="hidden">
+            <!-- Row 1: Intent Distribution & Recognition Summary -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                <div class="lg:col-span-2 bg-white rounded-lg p-6 shadow-lg">
+                    <h2 class="text-2xl font-semibold mb-4" style="color: #196CFF;">Intent Distribution</h2>
+                    <canvas id="intentChart"></canvas>
+                </div>
+                <div class="bg-white rounded-lg p-6 shadow-lg">
+                    <h2 class="text-2xl font-semibold mb-4" style="color: #196CFF;">Intent Recognition Summary</h2>
+                    <canvas id="summaryPieChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Row 2: Confidence Distribution & Exit Reasons -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                <div class="bg-white rounded-lg p-6 shadow-lg">
+                    <h2 class="text-2xl font-semibold mb-4" style="color: #196CFF;">Confidence Score Distribution</h2>
+                    <canvas id="confidenceChart"></canvas>
+                </div>
+
+            </div>
+
+            <!-- Row 3: Session Outcomes & Guess Accuracy by Intent -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                <div class="bg-white rounded-lg p-6 shadow-lg">
+                    <h2 class="text-2xl font-semibold mb-4" style="color: #196CFF;">Session Outcomes</h2>
+                    <canvas id="sessionOutcomeChart"></canvas>
+                </div>
+                <div class="bg-white rounded-lg p-6 shadow-lg">
+                    <h2 class="text-2xl font-semibold mb-4" style="color: #196CFF;">Guess Accuracy by Intent (Confirmed Yes vs No)</h2>
+                    <canvas id="accuracyByIntentChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Utterance Table -->
+            <div class="bg-white rounded-lg p-6 shadow-lg">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
+                    <h2 class="text-2xl font-semibold" style="color: #196CFF;">Utterances by Intent</h2>
+                    <div class="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+                        <select id="intentFilter"
+                            class="bg-gray-50 text-gray-900 px-4 py-2 rounded-lg border-2 focus:outline-none"
+                            style="border-color: #196CFF;">
+                            <option value="">All Intents</option>
+                        </select>
+                        <input type="text" id="utteranceSearch" placeholder="Search utterances..."
+                            class="bg-gray-50 text-gray-900 px-4 py-2 rounded-lg border-2 focus:outline-none"
+                            style="border-color: #196CFF;">
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left">
+                        <thead style="background-color: #196CFF;">
+                            <tr class="text-white">
+                                <th class="px-4 py-3">Utterance</th>
+                                <th class="px-4 py-3">Intent</th>
+                                <th class="px-4 py-3">Confirmed</th>
+                                <th class="px-4 py-3 cursor-pointer hover:opacity-80" id="confidenceHeader">
+                                    Confidence <span id="sortIndicator">⇅</span>
+                                </th>
+
+                            </tr>
+                        </thead>
+                        <tbody id="utteranceTableBody" class="divide-y divide-gray-200">
+                        </tbody>
+                    </table>
+                </div>
+                <div class="mt-4 flex flex-col md:flex-row justify-between items-center gap-4">
+                    <div class="text-gray-600 text-sm">
+                        Showing <span id="showingRange">0-0</span> of <span id="totalUtterances">0</span> utterances
+                    </div>
+                    <div class="flex gap-2">
+                        <button id="prevPageBtn" onclick="changePage(-1)"
+                            class="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed">
+                            Previous
+                        </button>
+                        <span id="pageIndicator" class="px-4 py-2 text-gray-600">Page 1</span>
+                        <button id="nextPageBtn" onclick="changePage(1)"
+                            class="px-4 py-2 bg-white text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+                            style="background-color: #196CFF;">
+                            Next
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let rawData = [];
+        let guessRows = []; // subset of rawData that represents actual NLU intent-guess turns
+        let charts = {};
+        let currentSortOrder = 'desc'; // 'asc' or 'desc'
+        let allIntents = [];
+        let currentPage = 1;
+        const itemsPerPage = 50;
+
+        // File input handler
+        document.getElementById('fileInput').addEventListener('change', handleFileUpload);
+        document.getElementById('utteranceSearch').addEventListener('input', filterUtterances);
+        document.getElementById('intentFilter').addEventListener('change', filterUtterances);
+        document.getElementById('confidenceHeader').addEventListener('click', toggleSort);
+
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const fileInfo = document.getElementById('fileInfo');
+            const errorMessage = document.getElementById('errorMessage');
+
+            fileInfo.textContent = `Loading ${file.name}...`;
+            fileInfo.classList.remove('hidden');
+            errorMessage.classList.add('hidden');
+
+            const reader = new FileReader();
+
+            reader.onload = function (e) {
+                try {
+                    if (file.name.endsWith('.csv')) {
+                        parseCSV(e.target.result, file.name);
+                    } else if (file.name.endsWith('.json')) {
+                        parseJSON(e.target.result, file.name);
+                    } else {
+                        parseExcel(e.target.result, file.name);
+                    }
+                } catch (error) {
+                    showError('Error parsing file: ' + error.message);
+                }
+            };
+
+            if (file.name.endsWith('.csv') || file.name.endsWith('.json')) {
+                reader.readAsText(file);
+            } else {
+                reader.readAsArrayBuffer(file);
+            }
+        }
+
+        function parseCSV(data, filename) {
+            Papa.parse(data, {
+                header: true,
+                skipEmptyLines: true,
+                complete: function (results) {
+                    processData(results.data, filename);
+                },
+                error: function (error) {
+                    showError('CSV parsing error: ' + error.message);
+                }
+            });
+        }
+
+        function parseExcel(data, filename) {
+            const workbook = XLSX.read(data, { type: 'array' });
+            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+            const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+            processData(jsonData, filename);
+        }
+
+        function parseJSON(data, filename) {
+            try {
+                const jsonData = JSON.parse(data);
+                if (Array.isArray(jsonData)) {
+                    processData(jsonData, filename);
+                } else {
+                    showError('JSON file must contain an array of records');
+                }
+            } catch (e) {
+                showError('Invalid JSON file: ' + e.message);
+            }
+        }
+
+        function processData(data, filename) {
+            if (!data || data.length === 0) {
+                showError('No data found in file');
+                return;
+            }
+
+            rawData = data;
+
+            const fileInfo = document.getElementById('fileInfo');
+            fileInfo.textContent = `✓ Loaded ${filename} - ${data.length} records`;
+            fileInfo.classList.remove('text-gray-600');
+            fileInfo.style.color = '#FFD218';
+
+            // Show dashboard
+            document.getElementById('sessionCards').classList.remove('hidden');
+            document.getElementById('summaryCards').classList.remove('hidden');
+            document.getElementById('chartsContainer').classList.remove('hidden');
+
+            // Generate analytics
+            generateAnalytics();
+        }
+
+        function showError(message) {
+            const errorMessage = document.getElementById('errorMessage');
+            errorMessage.textContent = '❌ ' + message;
+            errorMessage.classList.remove('hidden');
+            document.getElementById('fileInfo').classList.add('hidden');
+        }
+
+        function generateAnalytics() {
+            // A row represents an "Intent Guess" turn if turnType says so (new confirmation-flow
+            // schema), or if the row has no turnType at all (legacy single-snapshot format, where
+            // every row was already a guess).
+            guessRows = rawData.filter(row => row.turnType ? row.turnType === 'Intent Guess' : true);
+
+            let highConfidence = 0;  // Guess recognized with >= 30% confidence
+            let lowConfidence = 0;   // Guess recognized with < 30% confidence
+            let missingGuess = 0;    // Guess turn with no intent name at all (legacy format only)
+
+            const intentCounts = {};
+            const confidenceBuckets = Array(10).fill(0);
+
+            guessRows.forEach(row => {
+                const intent = String(row.x_Intent || row['x_Intent'] || '').trim();
+                const confidence = parseFloat(row.x_Intent_Confidence_percent || row['x_Intent_Confidence_percent'] || 0);
+
+                if (!intent) {
+                    missingGuess++;
+                } else if (confidence < 30) {
+                    lowConfidence++;
+                } else {
+                    highConfidence++;
+                }
+
+                if (intent) {
+                    intentCounts[intent] = (intentCounts[intent] || 0) + 1;
+                }
+
+                const bucket = Math.min(Math.floor(confidence / 10), 9);
+                confidenceBuckets[bucket]++;
+            });
+
+            // No Match / No Input turns - friction points where the bot never got usable input
+            const noMatchOrInputTurns = rawData.filter(row => row.turnType === 'No Match' || row.turnType === 'No Input').length;
+
+            // Confirmation accuracy - of the guesses the bot proposed, how many did the caller confirm?
+            let confirmedYes = 0, confirmedNo = 0;
+            const intentConfirmCounts = {};
+            rawData.forEach(row => {
+                if (row.confirmed === 'Yes' || row.confirmed === 'No') {
+                    if (row.confirmed === 'Yes') confirmedYes++; else confirmedNo++;
+                    const key = row.x_Intent || 'Unknown';
+                    if (!intentConfirmCounts[key]) intentConfirmCounts[key] = { yes: 0, no: 0 };
+                    intentConfirmCounts[key][row.confirmed === 'Yes' ? 'yes' : 'no']++;
+                }
+            });
+            const guessAccuracyPct = (confirmedYes + confirmedNo) > 0
+                ? (100 * confirmedYes / (confirmedYes + confirmedNo))
+                : null;
+
+            // Session-level rollup - group turns by conversationId (fallback: one session per row
+            // for legacy files that have no conversationId, matching the old 1-row-per-call format).
+            const sessionMap = new Map();
+            rawData.forEach((row, idx) => {
+                const key = row.conversationId || `__row_${idx}`;
+                if (!sessionMap.has(key)) sessionMap.set(key, []);
+                sessionMap.get(key).push(row);
+            });
+
+            let resolvedSessions = 0, rejectedSessions = 0, noMatchInputSessions = 0, otherSessions = 0;
+            let totalTurns = 0;
+            sessionMap.forEach(rows => {
+                totalTurns += rows.length;
+                const outcome = rows[0].sessionOutcome
+                    || (rows.some(r => String(r.x_Intent || '').trim()) ? 'Resolved' : 'Unresolved - No Match or Input');
+                if (outcome === 'Resolved') resolvedSessions++;
+                else if (outcome === 'Unresolved - Rejected Guess') rejectedSessions++;
+                else if (outcome === 'Unresolved - No Match or Input') noMatchInputSessions++;
+                else otherSessions++;
+            });
+            const totalSessions = sessionMap.size;
+            const avgTurnsPerSession = totalSessions ? (totalTurns / totalSessions) : 0;
+            const unresolvedPct = totalSessions ? Math.round(100 * (rejectedSessions + noMatchInputSessions + otherSessions) / totalSessions) : 0;
+
+            // Update session-level cards
+            document.getElementById('totalSessions').textContent = totalSessions.toLocaleString();
+            document.getElementById('resolvedSessions').textContent = totalSessions ? Math.round(100 * resolvedSessions / totalSessions) + '%' : '0%';
+            document.getElementById('unresolvedSessions').textContent = unresolvedPct + '%';
+            document.getElementById('avgTurns').textContent = avgTurnsPerSession.toFixed(1);
+
+            // Update guess-level cards
+            document.getElementById('guessAccuracy').textContent = guessAccuracyPct === null ? 'N/A' : Math.round(guessAccuracyPct) + '%';
+            document.getElementById('recognizedIntents').textContent = highConfidence.toLocaleString();
+            document.getElementById('lowConfidence').textContent = lowConfidence.toLocaleString();
+            document.getElementById('missingIntents').textContent = noMatchOrInputTurns.toLocaleString();
+
+            // Populate intent filter dropdown
+            allIntents = Object.keys(intentCounts).sort();
+            populateIntentFilter();
+
+            // Generate charts
+            createIntentChart(intentCounts);
+            createConfidenceChart(confidenceBuckets);
+            createSummaryPieChart(highConfidence, lowConfidence, missingGuess);
+            createSessionOutcomeChart(resolvedSessions, rejectedSessions, noMatchInputSessions, otherSessions);
+            createAccuracyByIntentChart(intentConfirmCounts);
+
+            // Populate utterance table with default filter
+            populateUtteranceTable();
+        }
+
+        function populateIntentFilter() {
+            const intentFilter = document.getElementById('intentFilter');
+
+            // Clear existing options except "All Intents"
+            intentFilter.innerHTML = '<option value="">All Intents</option>';
+
+            // Add all intents
+            allIntents.forEach(intent => {
+                const option = document.createElement('option');
+                option.value = intent;
+                option.textContent = intent;
+                intentFilter.appendChild(option);
+            });
+
+            // Default to a Billing-related intent if present (works for either flow's naming)
+            const defaultIntent = allIntents.find(i => i === 'Billing Enquiry' || i === 'Billing');
+            if (defaultIntent) {
+                intentFilter.value = defaultIntent;
+            } else if (allIntents.length > 0) {
+                // Fallback to first intent otherwise
+                intentFilter.value = allIntents[0];
+            }
+        }
+
+        function toggleSort() {
+            currentSortOrder = currentSortOrder === 'desc' ? 'asc' : 'desc';
+            updateSortIndicator();
+            populateUtteranceTable();
+        }
+
+        function updateSortIndicator() {
+            const indicator = document.getElementById('sortIndicator');
+            indicator.textContent = currentSortOrder === 'desc' ? '↓' : '↑';
+        }
+
+        function createIntentChart(intentCounts) {
+            const ctx = document.getElementById('intentChart');
+
+            if (charts.intent) charts.intent.destroy();
+
+            const sortedIntents = Object.entries(intentCounts)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 15); // Top 15 intents
+
+            charts.intent = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: sortedIntents.map(([intent]) => intent),
+                    datasets: [{
+                        label: 'Count',
+                        data: sortedIntents.map(([, count]) => count),
+                        backgroundColor: '#196CFF',
+                        borderColor: '#196CFF',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(25, 108, 255, 0.95)',
+                            titleColor: '#FFFFFF',
+                            bodyColor: '#FFFFFF'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: 'rgba(0, 0, 0, 0.1)' },
+                            ticks: { color: '#4B5563', font: { family: 'Open Sans' } }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: {
+                                color: '#4B5563',
+                                maxRotation: 45,
+                                minRotation: 45,
+                                font: { family: 'Open Sans' }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function createConfidenceChart(buckets) {
+            const ctx = document.getElementById('confidenceChart');
+
+            if (charts.confidence) charts.confidence.destroy();
+
+            charts.confidence = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['0-10', '10-20', '20-30', '30-40', '40-50', '50-60', '60-70', '70-80', '80-90', '90-100'],
+                    datasets: [{
+                        label: 'Count',
+                        data: buckets,
+                        backgroundColor: '#196CFF',
+                        borderColor: '#196CFF',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(25, 108, 255, 0.95)',
+                            titleColor: '#FFFFFF',
+                            bodyColor: '#FFFFFF'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: 'rgba(0, 0, 0, 0.1)' },
+                            ticks: { color: '#4B5563', font: { family: 'Open Sans' } }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: '#4B5563', font: { family: 'Open Sans' } },
+                            title: {
+                                display: true,
+                                text: 'Confidence Percentage',
+                                color: '#4B5563',
+                                font: { family: 'Open Sans', weight: '600' }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+
+
+        function createSummaryPieChart(highConfidence, lowConfidence, missing) {
+            const ctx = document.getElementById('summaryPieChart');
+
+            if (charts.summaryPie) charts.summaryPie.destroy();
+
+            charts.summaryPie = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: ['High Confidence (>=30%)', 'Low Confidence (<30%)', 'Missing Intent'],
+                    datasets: [{
+                        data: [highConfidence, lowConfidence, missing],
+                        backgroundColor: [
+                            '#10B981',  // Green for high confidence
+                            '#FFD218',  // Yellow for low confidence
+                            '#FF6100'   // Orange for missing
+                        ],
+                        borderColor: [
+                            '#10B981',
+                            '#FFD218',
+                            '#FF6100'
+                        ],
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                color: '#4B5563',
+                                padding: 15,
+                                font: { family: 'Open Sans' }
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(25, 108, 255, 0.95)',
+                            titleColor: '#FFFFFF',
+                            bodyColor: '#FFFFFF',
+                            callbacks: {
+                                label: function (context) {
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = ((context.parsed / total) * 100).toFixed(1);
+                                    return `${context.label}: ${context.parsed} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function createSessionOutcomeChart(resolved, rejected, noMatchInput, other) {
+            const ctx = document.getElementById('sessionOutcomeChart');
+
+            if (charts.sessionOutcome) charts.sessionOutcome.destroy();
+
+            const labels = ['Resolved', 'Unresolved - Rejected Guess', 'Unresolved - No Match/Input'];
+            const data = [resolved, rejected, noMatchInput];
+            const colors = ['#10B981', '#FF6100', '#FFD218'];
+            if (other > 0) {
+                labels.push('Other');
+                data.push(other);
+                colors.push('#9CA3AF');
+            }
+
+            charts.sessionOutcome = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels,
+                    datasets: [{
+                        data,
+                        backgroundColor: colors,
+                        borderColor: colors,
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { color: '#4B5563', padding: 15, font: { family: 'Open Sans' } }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(25, 108, 255, 0.95)',
+                            titleColor: '#FFFFFF',
+                            bodyColor: '#FFFFFF',
+                            callbacks: {
+                                label: function (context) {
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = total ? ((context.parsed / total) * 100).toFixed(1) : 0;
+                                    return `${context.label}: ${context.parsed} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function createAccuracyByIntentChart(intentConfirmCounts) {
+            const ctx = document.getElementById('accuracyByIntentChart');
+
+            if (charts.accuracyByIntent) charts.accuracyByIntent.destroy();
+
+            const entries = Object.entries(intentConfirmCounts)
+                .sort((a, b) => (b[1].yes + b[1].no) - (a[1].yes + a[1].no))
+                .slice(0, 12);
+
+            charts.accuracyByIntent = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: entries.map(([intent]) => intent),
+                    datasets: [
+                        { label: 'Confirmed Yes', data: entries.map(([, c]) => c.yes), backgroundColor: '#10B981' },
+                        { label: 'Confirmed No', data: entries.map(([, c]) => c.no), backgroundColor: '#FF6100' }
+                    ]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { color: '#4B5563', font: { family: 'Open Sans' } }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(25, 108, 255, 0.95)',
+                            titleColor: '#FFFFFF',
+                            bodyColor: '#FFFFFF'
+                        }
+                    },
+                    scales: {
+                        x: { stacked: true, beginAtZero: true, ticks: { color: '#4B5563' } },
+                        y: { stacked: true, ticks: { color: '#4B5563', font: { family: 'Open Sans' } } }
+                    }
+                }
+            });
+        }
+
+        function populateUtteranceTable(filterText = '', resetPage = true) {
+            if (resetPage) currentPage = 1;
+
+            const tbody = document.getElementById('utteranceTableBody');
+            tbody.innerHTML = '';
+
+            const selectedIntent = document.getElementById('intentFilter').value;
+            const searchText = filterText || document.getElementById('utteranceSearch').value;
+
+            // Filter guess-turn data by intent and search text
+            let filteredData = guessRows.filter(row => {
+                const intent = String(row.x_Intent || row['x_Intent'] || '');
+                const utterance = String(row.x_NLU_Utterance || row['x_NLU_Utterance'] || '').toLowerCase();
+
+                // Intent filter
+                const intentMatch = !selectedIntent || intent === selectedIntent;
+
+                // Search filter
+                const searchMatch = !searchText ||
+                    utterance.includes(searchText.toLowerCase()) ||
+                    intent.toLowerCase().includes(searchText.toLowerCase());
+
+                return intentMatch && searchMatch;
+            });
+
+            // Sort by confidence
+            filteredData.sort((a, b) => {
+                const confA = parseFloat(a.x_Intent_Confidence_percent || a['x_Intent_Confidence_percent'] || 0);
+                const confB = parseFloat(b.x_Intent_Confidence_percent || b['x_Intent_Confidence_percent'] || 0);
+                return currentSortOrder === 'desc' ? confB - confA : confA - confB;
+            });
+
+            const totalFiltered = filteredData.length;
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const endIndex = Math.min(startIndex + itemsPerPage, totalFiltered);
+            const pageData = filteredData.slice(startIndex, endIndex);
+
+            // Display page data
+            pageData.forEach(row => {
+                const utterance = String(row.x_NLU_Utterance || row['x_NLU_Utterance'] || '-');
+                const intent = String(row.x_Intent || row['x_Intent'] || 'Missing');
+                const confidence = parseFloat(row.x_Intent_Confidence_percent || row['x_Intent_Confidence_percent'] || 0);
+                const confirmed = row.confirmed || '';
+                const confirmedLabel = confirmed === 'Yes' ? '✅ Yes' : confirmed === 'No' ? '❌ No' : confirmed === 'Unresolved' ? '⚠️ Unresolved' : '–';
+
+                const confidenceClass = confidence < 30 ? 'text-red-600 font-semibold' :
+                    confidence < 70 ? 'font-semibold' : 'font-semibold';
+                const confidenceColor = confidence < 30 ? '#FF6100' :
+                    confidence < 70 ? '#FFD218' : '#196CFF';
+
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-gray-50';
+                tr.innerHTML = `
+                    <td class="px-4 py-3 max-w-md" title="${utterance}">${utterance}</td>
+                    <td class="px-4 py-3">${intent}</td>
+                    <td class="px-4 py-3">${confirmedLabel}</td>
+                    <td class="px-4 py-3 ${confidenceClass}" style="color: ${confidenceColor};">${confidence.toFixed(1)}%</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            // Update counts and controls
+            const showingStart = totalFiltered === 0 ? 0 : startIndex + 1;
+            document.getElementById('showingRange').textContent = `${showingStart}-${endIndex}`;
+            document.getElementById('totalUtterances').textContent = totalFiltered.toLocaleString();
+
+            // Update pagination buttons
+            const totalPages = Math.ceil(totalFiltered / itemsPerPage);
+            const prevBtn = document.getElementById('prevPageBtn');
+            const nextBtn = document.getElementById('nextPageBtn');
+            const pageIndicator = document.getElementById('pageIndicator');
+
+            prevBtn.disabled = currentPage === 1;
+            nextBtn.disabled = currentPage >= totalPages || totalPages === 0;
+            pageIndicator.textContent = `Page ${currentPage} of ${totalPages || 1}`;
+
+            // Show message if no results
+            if (totalFiltered === 0) {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td colspan="4" class="px-4 py-8 text-center text-gray-400">
+                        No utterances found matching the current filters
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            }
+        }
+
+        function changePage(delta) {
+            currentPage += delta;
+            populateUtteranceTable(undefined, false);
+        }
+
+        function filterUtterances(event) {
+            populateUtteranceTable(undefined, true);
+        }
+    </script>
+</body>
+
+</html>
