@@ -32,6 +32,23 @@
         h3 {
             font-family: 'Bitter', serif;
         }
+
+        .kpi-tooltip {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 15px;
+            height: 15px;
+            border-radius: 9999px;
+            background-color: #E5E7EB;
+            color: #4B5563;
+            font-size: 11px;
+            font-style: normal;
+            font-family: 'Open Sans', Arial, sans-serif;
+            cursor: help;
+            margin-left: 4px;
+            vertical-align: middle;
+        }
     </style>
 </head>
 
@@ -60,19 +77,27 @@
         <!-- Session-Level KPIs (per caller call/session) -->
         <div id="sessionCards" class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4 hidden">
             <div class="bg-white rounded-lg p-6 shadow-lg border-t-4" style="border-color: #196CFF;">
-                <h3 class="text-gray-600 text-sm mb-2 font-semibold">Total Sessions</h3>
+                <h3 class="text-gray-600 text-sm mb-2 font-semibold">Total Sessions
+                    <span class="kpi-tooltip" title="The number of distinct caller sessions (unique conversationId) in the loaded file. One session can contain several turns (guesses, confirmations, no-match/no-input).">ⓘ</span>
+                </h3>
                 <p id="totalSessions" class="text-4xl font-bold" style="color: #196CFF;">0</p>
             </div>
             <div class="bg-white rounded-lg p-6 shadow-lg border-t-4" style="border-color: #10B981;">
-                <h3 class="text-gray-600 text-sm mb-2 font-semibold">Resolved Sessions</h3>
+                <h3 class="text-gray-600 text-sm mb-2 font-semibold">Resolved Sessions
+                    <span class="kpi-tooltip" title="% of sessions where the caller confirmed the bot's intent guess as correct (Yes). Higher is better - this is the ultimate success measure for the bot flow.">ⓘ</span>
+                </h3>
                 <p id="resolvedSessions" class="text-4xl font-bold" style="color: #10B981;">0%</p>
             </div>
             <div class="bg-white rounded-lg p-6 shadow-lg border-t-4" style="border-color: #FF6100;">
-                <h3 class="text-gray-600 text-sm mb-2 font-semibold">Escalated / Unresolved</h3>
+                <h3 class="text-gray-600 text-sm mb-2 font-semibold">Escalated / Unresolved
+                    <span class="kpi-tooltip" title="% of sessions that ended without a confirmed intent - either the caller rejected every guess (Unresolved - Rejected Guess) or the bot never understood/heard a usable utterance (Unresolved - No Match or Input). These are the sessions most likely to need agent escalation.">ⓘ</span>
+                </h3>
                 <p id="unresolvedSessions" class="text-4xl font-bold" style="color: #FF6100;">0%</p>
             </div>
             <div class="bg-white rounded-lg p-6 shadow-lg border-t-4" style="border-color: #196CFF;">
-                <h3 class="text-gray-600 text-sm mb-2 font-semibold">Avg Turns / Session</h3>
+                <h3 class="text-gray-600 text-sm mb-2 font-semibold">Avg Turns / Session
+                    <span class="kpi-tooltip" title="Average number of turns (guesses + confirmations + no-match/no-input) per session. Lower is generally better - it means callers reach a resolved or final outcome with less back-and-forth.">ⓘ</span>
+                </h3>
                 <p id="avgTurns" class="text-4xl font-bold" style="color: #196CFF;">0</p>
             </div>
         </div>
@@ -80,19 +105,27 @@
         <!-- Summary Cards (intent-guess level) -->
         <div id="summaryCards" class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8 hidden">
             <div class="bg-white rounded-lg p-6 shadow-lg border-t-4" style="border-color: #196CFF;">
-                <h3 class="text-gray-600 text-sm mb-2 font-semibold">Bot Guess Accuracy</h3>
+                <h3 class="text-gray-600 text-sm mb-2 font-semibold">Bot Guess Accuracy
+                    <span class="kpi-tooltip" title="Of all the intent guesses the bot proposed and asked the caller to confirm, the % the caller confirmed as Yes (correct). This is grounded in the caller's own Yes/No answer, not the bot's confidence score.">ⓘ</span>
+                </h3>
                 <p id="guessAccuracy" class="text-4xl font-bold" style="color: #196CFF;">0%</p>
             </div>
             <div class="bg-white rounded-lg p-6 shadow-lg border-t-4" style="border-color: #10B981;">
-                <h3 class="text-gray-600 text-sm mb-2 font-semibold">High Confidence (&ge;30%)</h3>
+                <h3 class="text-gray-600 text-sm mb-2 font-semibold">High Confidence (&ge;30%)
+                    <span class="kpi-tooltip" title="Number of intent guesses where the NLU model's confidence score was 30% or higher. This reflects how sure the model was, not whether the caller agreed the guess was correct.">ⓘ</span>
+                </h3>
                 <p id="recognizedIntents" class="text-4xl font-bold" style="color: #10B981;">0</p>
             </div>
             <div class="bg-white rounded-lg p-6 shadow-lg border-t-4" style="border-color: #FFD218;">
-                <h3 class="text-gray-600 text-sm mb-2 font-semibold">Low Confidence (&lt;30%)</h3>
+                <h3 class="text-gray-600 text-sm mb-2 font-semibold">Low Confidence (&lt;30%)
+                    <span class="kpi-tooltip" title="Number of intent guesses where the NLU model's confidence score was below 30%. These guesses are more likely to be wrong and worth reviewing for training gaps, even if the caller happened to confirm them.">ⓘ</span>
+                </h3>
                 <p id="lowConfidence" class="text-4xl font-bold" style="color: #FFD218;">0</p>
             </div>
             <div class="bg-white rounded-lg p-6 shadow-lg border-t-4" style="border-color: #FF6100;">
-                <h3 class="text-gray-600 text-sm mb-2 font-semibold">No Match / No Input Turns</h3>
+                <h3 class="text-gray-600 text-sm mb-2 font-semibold">No Match / No Input Turns
+                    <span class="kpi-tooltip" title="Total turns where the bot never produced an intent guess at all - either it didn't understand the caller's utterance (No Match) or the caller said nothing (No Input). Use the 'No Match / No Input' tab below to see the actual utterances.">ⓘ</span>
+                </h3>
                 <p id="missingIntents" class="text-4xl font-bold" style="color: #FF6100;">0</p>
             </div>
         </div>
@@ -609,8 +642,6 @@
                 }
             });
         }
-
-
 
         function createSummaryPieChart(highConfidence, lowConfidence, missing) {
             const ctx = document.getElementById('summaryPieChart');
