@@ -276,7 +276,6 @@
             rawData = data;
 
             const fileInfo = document.getElementById('fileInfo');
-            fileInfo.textContent = `✓ Loaded ${filename} - ${data.length} records`;
             fileInfo.classList.remove('text-gray-600');
             fileInfo.style.color = '#FFD218';
 
@@ -285,8 +284,14 @@
             document.getElementById('summaryCards').classList.remove('hidden');
             document.getElementById('chartsContainer').classList.remove('hidden');
 
-            // Generate analytics
+            // Generate analytics (this also populates guessRows, used below)
             generateAnalytics();
+
+            // Clarify the turn/utterance split up front, since most turns are not intent guesses
+            // (they're the caller's yes/no confirmation, silence, or a misheard attempt)
+            fileInfo.textContent = data.length === guessRows.length
+                ? `✓ Loaded ${filename} - ${data.length} records`
+                : `✓ Loaded ${filename} - ${data.length} turns (${guessRows.length} intent guesses, rest are confirmations/no-match/no-input)`;
         }
 
         function showError(message) {
