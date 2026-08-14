@@ -142,6 +142,17 @@
                             style="border-color: #196CFF;">
                             <option value="">All Intents</option>
                         </select>
+                        <div class="flex items-center gap-3 bg-gray-50 px-4 py-2 rounded-lg border-2" style="border-color: #196CFF;">
+                            <label class="flex items-center gap-1 text-sm text-gray-700 cursor-pointer whitespace-nowrap">
+                                <input type="checkbox" id="confirmFilterYes" class="confirm-filter-checkbox" checked> ✅ Yes
+                            </label>
+                            <label class="flex items-center gap-1 text-sm text-gray-700 cursor-pointer whitespace-nowrap">
+                                <input type="checkbox" id="confirmFilterNo" class="confirm-filter-checkbox" checked> ❌ No
+                            </label>
+                            <label class="flex items-center gap-1 text-sm text-gray-700 cursor-pointer whitespace-nowrap">
+                                <input type="checkbox" id="confirmFilterUnresolved" class="confirm-filter-checkbox" checked> ⚠️ Unresolved
+                            </label>
+                        </div>
                         <input type="text" id="utteranceSearch" placeholder="Search utterances..."
                             class="bg-gray-50 text-gray-900 px-4 py-2 rounded-lg border-2 focus:outline-none"
                             style="border-color: #196CFF;">
@@ -199,6 +210,7 @@
         document.getElementById('utteranceSearch').addEventListener('input', filterUtterances);
         document.getElementById('intentFilter').addEventListener('change', filterUtterances);
         document.getElementById('confidenceHeader').addEventListener('click', toggleSort);
+        document.querySelectorAll('.confirm-filter-checkbox').forEach(cb => cb.addEventListener('change', filterUtterances));
 
         function handleFileUpload(event) {
             const file = event.target.files[0];
@@ -693,11 +705,15 @@
 
             const selectedIntent = document.getElementById('intentFilter').value;
             const searchText = filterText || document.getElementById('utteranceSearch').value;
+            const checkedConfirmStates = ['confirmFilterYes', 'confirmFilterNo', 'confirmFilterUnresolved']
+                .filter(id => document.getElementById(id).checked)
+                .map(id => id.replace('confirmFilter', ''));
 
-            // Filter guess-turn data by intent and search text
+            // Filter guess-turn data by intent, search text, and confirmed status
             let filteredData = guessRows.filter(row => {
                 const intent = String(row.x_Intent || row['x_Intent'] || '');
                 const utterance = String(row.x_NLU_Utterance || row['x_NLU_Utterance'] || '').toLowerCase();
+                const confirmed = row.confirmed || '';
 
                 // Intent filter
                 const intentMatch = !selectedIntent || intent === selectedIntent;
@@ -707,7 +723,10 @@
                     utterance.includes(searchText.toLowerCase()) ||
                     intent.toLowerCase().includes(searchText.toLowerCase());
 
-                return intentMatch && searchMatch;
+                // Confirmed status filter (rows with no confirmed value, e.g. legacy files, always pass)
+                const confirmMatch = !confirmed || checkedConfirmStates.includes(confirmed);
+
+                return intentMatch && searchMatch && confirmMatch;
             });
 
             // Sort by confidence
