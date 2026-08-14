@@ -103,11 +103,15 @@
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
                 <div class="lg:col-span-2 bg-white rounded-lg p-6 shadow-lg">
                     <h2 class="text-2xl font-semibold mb-4" style="color: #196CFF;">Intent Distribution</h2>
-                    <canvas id="intentChart"></canvas>
+                    <div class="h-80">
+                        <canvas id="intentChart"></canvas>
+                    </div>
                 </div>
                 <div class="bg-white rounded-lg p-6 shadow-lg">
                     <h2 class="text-2xl font-semibold mb-4" style="color: #196CFF;">Intent Recognition Summary</h2>
-                    <canvas id="summaryPieChart"></canvas>
+                    <div class="h-80">
+                        <canvas id="summaryPieChart"></canvas>
+                    </div>
                 </div>
             </div>
 
@@ -115,7 +119,9 @@
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
                 <div class="bg-white rounded-lg p-6 shadow-lg">
                     <h2 class="text-2xl font-semibold mb-4" style="color: #196CFF;">Confidence Score Distribution</h2>
-                    <canvas id="confidenceChart"></canvas>
+                    <div class="h-80">
+                        <canvas id="confidenceChart"></canvas>
+                    </div>
                 </div>
 
             </div>
@@ -124,11 +130,15 @@
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
                 <div class="bg-white rounded-lg p-6 shadow-lg">
                     <h2 class="text-2xl font-semibold mb-4" style="color: #196CFF;">Session Outcomes</h2>
-                    <canvas id="sessionOutcomeChart"></canvas>
+                    <div class="h-80">
+                        <canvas id="sessionOutcomeChart"></canvas>
+                    </div>
                 </div>
                 <div class="bg-white rounded-lg p-6 shadow-lg">
                     <h2 class="text-2xl font-semibold mb-4" style="color: #196CFF;">Guess Accuracy by Intent (Confirmed Yes vs No)</h2>
-                    <canvas id="accuracyByIntentChart"></canvas>
+                    <div class="h-80">
+                        <canvas id="accuracyByIntentChart"></canvas>
+                    </div>
                 </div>
             </div>
 
@@ -136,7 +146,17 @@
             <div class="bg-white rounded-lg p-6 shadow-lg">
                 <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
                     <h2 class="text-2xl font-semibold" style="color: #196CFF;">Utterances by Intent</h2>
-                    <div class="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+                    <div class="flex bg-gray-100 rounded-lg p-1 gap-1">
+                        <button id="viewGuessesBtn" onclick="switchUtteranceView('guess')"
+                            class="px-3 py-2 rounded-lg text-sm font-semibold transition whitespace-nowrap"
+                            style="background-color: #196CFF; color: #FFFFFF;">Intent Guesses</button>
+                        <button id="viewNoMatchBtn" onclick="switchUtteranceView('nomatch')"
+                            class="px-3 py-2 rounded-lg text-sm font-semibold transition whitespace-nowrap text-gray-600">No
+                            Match / No Input</button>
+                    </div>
+                </div>
+                <div class="flex flex-col md:flex-row justify-end items-start md:items-center mb-4 gap-3">
+                    <div id="guessFilterControls" class="flex flex-col md:flex-row gap-3 w-full md:w-auto">
                         <select id="intentFilter"
                             class="bg-gray-50 text-gray-900 px-4 py-2 rounded-lg border-2 focus:outline-none"
                             style="border-color: #196CFF;">
@@ -153,22 +173,30 @@
                                 <input type="checkbox" id="confirmFilterUnresolved" class="confirm-filter-checkbox" checked> ⚠️ Unresolved
                             </label>
                         </div>
-                        <input type="text" id="utteranceSearch" placeholder="Search utterances..."
-                            class="bg-gray-50 text-gray-900 px-4 py-2 rounded-lg border-2 focus:outline-none"
-                            style="border-color: #196CFF;">
                     </div>
+                    <div id="noMatchFilterControls" class="hidden items-center gap-3 bg-gray-50 px-4 py-2 rounded-lg border-2 w-full md:w-auto" style="border-color: #196CFF;">
+                        <label class="flex items-center gap-1 text-sm text-gray-700 cursor-pointer whitespace-nowrap">
+                            <input type="checkbox" id="turnTypeFilterNoMatch" class="turntype-filter-checkbox" checked> 🚫 No Match
+                        </label>
+                        <label class="flex items-center gap-1 text-sm text-gray-700 cursor-pointer whitespace-nowrap">
+                            <input type="checkbox" id="turnTypeFilterNoInput" class="turntype-filter-checkbox" checked> 🔇 No Input
+                        </label>
+                    </div>
+                    <input type="text" id="utteranceSearch" placeholder="Search utterances..."
+                        class="bg-gray-50 text-gray-900 px-4 py-2 rounded-lg border-2 focus:outline-none w-full md:w-auto"
+                        style="border-color: #196CFF;">
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full text-left">
                         <thead style="background-color: #196CFF;">
                             <tr class="text-white">
                                 <th class="px-4 py-3">Utterance</th>
-                                <th class="px-4 py-3">Intent</th>
-                                <th class="px-4 py-3">Confirmed</th>
+                                <th class="px-4 py-3" id="intentColumnHeader">Intent</th>
+                                <th class="px-4 py-3" id="confirmedColumnHeader">Confirmed</th>
                                 <th class="px-4 py-3 cursor-pointer hover:opacity-80" id="confidenceHeader">
                                     Confidence <span id="sortIndicator">⇅</span>
                                 </th>
-
+                                <th class="px-4 py-3">Interaction ID</th>
                             </tr>
                         </thead>
                         <tbody id="utteranceTableBody" class="divide-y divide-gray-200">
@@ -203,6 +231,7 @@
         let currentSortOrder = 'desc'; // 'asc' or 'desc'
         let allIntents = [];
         let currentPage = 1;
+        let currentUtteranceView = 'guess'; // 'guess' or 'nomatch'
         const itemsPerPage = 50;
 
         // File input handler
@@ -211,6 +240,36 @@
         document.getElementById('intentFilter').addEventListener('change', filterUtterances);
         document.getElementById('confidenceHeader').addEventListener('click', toggleSort);
         document.querySelectorAll('.confirm-filter-checkbox').forEach(cb => cb.addEventListener('change', filterUtterances));
+        document.querySelectorAll('.turntype-filter-checkbox').forEach(cb => cb.addEventListener('change', filterUtterances));
+
+        function switchUtteranceView(view) {
+            currentUtteranceView = view;
+
+            const guessBtn = document.getElementById('viewGuessesBtn');
+            const noMatchBtn = document.getElementById('viewNoMatchBtn');
+            const guessControls = document.getElementById('guessFilterControls');
+            const noMatchControls = document.getElementById('noMatchFilterControls');
+            const intentHeader = document.getElementById('intentColumnHeader');
+            const confirmedHeader = document.getElementById('confirmedColumnHeader');
+            const confidenceHeader = document.getElementById('confidenceHeader');
+
+            const isGuessView = view === 'guess';
+            guessBtn.style.backgroundColor = isGuessView ? '#196CFF' : '';
+            guessBtn.style.color = isGuessView ? '#FFFFFF' : '#4B5563';
+            noMatchBtn.style.backgroundColor = isGuessView ? '' : '#196CFF';
+            noMatchBtn.style.color = isGuessView ? '#4B5563' : '#FFFFFF';
+
+            guessControls.classList.toggle('hidden', !isGuessView);
+            noMatchControls.classList.toggle('hidden', isGuessView);
+            noMatchControls.classList.toggle('flex', !isGuessView);
+
+            intentHeader.textContent = isGuessView ? 'Intent' : 'Turn Type';
+            confirmedHeader.classList.toggle('hidden', !isGuessView);
+            confidenceHeader.classList.toggle('hidden', !isGuessView);
+
+            currentPage = 1;
+            populateUtteranceTable();
+        }
 
         function handleFileUpload(event) {
             const file = event.target.files[0];
@@ -289,7 +348,7 @@
 
             const fileInfo = document.getElementById('fileInfo');
             fileInfo.classList.remove('text-gray-600');
-            fileInfo.style.color = '#FFD218';
+            fileInfo.style.color = '#196CFF';
 
             // Show dashboard
             document.getElementById('sessionCards').classList.remove('hidden');
@@ -473,7 +532,7 @@
                 },
                 options: {
                     responsive: true,
-                    maintainAspectRatio: true,
+                    maintainAspectRatio: false,
                     plugins: {
                         legend: { display: false },
                         tooltip: {
@@ -521,7 +580,7 @@
                 },
                 options: {
                     responsive: true,
-                    maintainAspectRatio: true,
+                    maintainAspectRatio: false,
                     plugins: {
                         legend: { display: false },
                         tooltip: {
@@ -579,7 +638,7 @@
                 },
                 options: {
                     responsive: true,
-                    maintainAspectRatio: true,
+                    maintainAspectRatio: false,
                     plugins: {
                         legend: {
                             position: 'bottom',
@@ -633,7 +692,7 @@
                 },
                 options: {
                     responsive: true,
-                    maintainAspectRatio: true,
+                    maintainAspectRatio: false,
                     plugins: {
                         legend: {
                             position: 'bottom',
@@ -677,7 +736,7 @@
                 options: {
                     indexAxis: 'y',
                     responsive: true,
-                    maintainAspectRatio: true,
+                    maintainAspectRatio: false,
                     plugins: {
                         legend: {
                             position: 'bottom',
@@ -703,38 +762,57 @@
             const tbody = document.getElementById('utteranceTableBody');
             tbody.innerHTML = '';
 
-            const selectedIntent = document.getElementById('intentFilter').value;
             const searchText = filterText || document.getElementById('utteranceSearch').value;
-            const checkedConfirmStates = ['confirmFilterYes', 'confirmFilterNo', 'confirmFilterUnresolved']
-                .filter(id => document.getElementById(id).checked)
-                .map(id => id.replace('confirmFilter', ''));
+            let filteredData;
+            let columnCount;
 
-            // Filter guess-turn data by intent, search text, and confirmed status
-            let filteredData = guessRows.filter(row => {
-                const intent = String(row.x_Intent || row['x_Intent'] || '');
-                const utterance = String(row.x_NLU_Utterance || row['x_NLU_Utterance'] || '').toLowerCase();
-                const confirmed = row.confirmed || '';
+            if (currentUtteranceView === 'nomatch') {
+                columnCount = 3;
+                const checkedTurnTypes = ['turnTypeFilterNoMatch', 'turnTypeFilterNoInput']
+                    .filter(id => document.getElementById(id).checked)
+                    .map(id => id === 'turnTypeFilterNoMatch' ? 'No Match' : 'No Input');
 
-                // Intent filter
-                const intentMatch = !selectedIntent || intent === selectedIntent;
+                // Turns where the NLU engine never produced an intent guess at all
+                filteredData = rawData.filter(row => {
+                    if (row.turnType !== 'No Match' && row.turnType !== 'No Input') return false;
+                    if (!checkedTurnTypes.includes(row.turnType)) return false;
+                    const utterance = String(row.x_NLU_Utterance || row['x_NLU_Utterance'] || '').toLowerCase();
+                    return !searchText || utterance.includes(searchText.toLowerCase());
+                });
+            } else {
+                columnCount = 5;
+                const selectedIntent = document.getElementById('intentFilter').value;
+                const checkedConfirmStates = ['confirmFilterYes', 'confirmFilterNo', 'confirmFilterUnresolved']
+                    .filter(id => document.getElementById(id).checked)
+                    .map(id => id.replace('confirmFilter', ''));
 
-                // Search filter
-                const searchMatch = !searchText ||
-                    utterance.includes(searchText.toLowerCase()) ||
-                    intent.toLowerCase().includes(searchText.toLowerCase());
+                // Filter guess-turn data by intent, search text, and confirmed status
+                filteredData = guessRows.filter(row => {
+                    const intent = String(row.x_Intent || row['x_Intent'] || '');
+                    const utterance = String(row.x_NLU_Utterance || row['x_NLU_Utterance'] || '').toLowerCase();
+                    const confirmed = row.confirmed || '';
 
-                // Confirmed status filter (rows with no confirmed value, e.g. legacy files, always pass)
-                const confirmMatch = !confirmed || checkedConfirmStates.includes(confirmed);
+                    // Intent filter
+                    const intentMatch = !selectedIntent || intent === selectedIntent;
 
-                return intentMatch && searchMatch && confirmMatch;
-            });
+                    // Search filter
+                    const searchMatch = !searchText ||
+                        utterance.includes(searchText.toLowerCase()) ||
+                        intent.toLowerCase().includes(searchText.toLowerCase());
 
-            // Sort by confidence
-            filteredData.sort((a, b) => {
-                const confA = parseFloat(a.x_Intent_Confidence_percent || a['x_Intent_Confidence_percent'] || 0);
-                const confB = parseFloat(b.x_Intent_Confidence_percent || b['x_Intent_Confidence_percent'] || 0);
-                return currentSortOrder === 'desc' ? confB - confA : confA - confB;
-            });
+                    // Confirmed status filter (rows with no confirmed value, e.g. legacy files, always pass)
+                    const confirmMatch = !confirmed || checkedConfirmStates.includes(confirmed);
+
+                    return intentMatch && searchMatch && confirmMatch;
+                });
+
+                // Sort by confidence
+                filteredData.sort((a, b) => {
+                    const confA = parseFloat(a.x_Intent_Confidence_percent || a['x_Intent_Confidence_percent'] || 0);
+                    const confB = parseFloat(b.x_Intent_Confidence_percent || b['x_Intent_Confidence_percent'] || 0);
+                    return currentSortOrder === 'desc' ? confB - confA : confA - confB;
+                });
+            }
 
             const totalFiltered = filteredData.length;
             const startIndex = (currentPage - 1) * itemsPerPage;
@@ -743,25 +821,42 @@
 
             // Display page data
             pageData.forEach(row => {
-                const utterance = String(row.x_NLU_Utterance || row['x_NLU_Utterance'] || '-');
-                const intent = String(row.x_Intent || row['x_Intent'] || 'Missing');
-                const confidence = parseFloat(row.x_Intent_Confidence_percent || row['x_Intent_Confidence_percent'] || 0);
-                const confirmed = row.confirmed || '';
-                const confirmedLabel = confirmed === 'Yes' ? '✅ Yes' : confirmed === 'No' ? '❌ No' : confirmed === 'Unresolved' ? '⚠️ Unresolved' : '–';
-
-                const confidenceClass = confidence < 30 ? 'text-red-600 font-semibold' :
-                    confidence < 70 ? 'font-semibold' : 'font-semibold';
-                const confidenceColor = confidence < 30 ? '#FF6100' :
-                    confidence < 70 ? '#FFD218' : '#196CFF';
-
+                const utterance = String(row.x_NLU_Utterance || row['x_NLU_Utterance'] || '');
+                const conversationId = String(row.conversationId || row['conversationId'] || '');
+                const conversationIdCell = conversationId
+                    ? `<td class="px-4 py-3 font-mono text-xs" title="${conversationId}">${conversationId}</td>`
+                    : `<td class="px-4 py-3 text-gray-400">–</td>`;
                 const tr = document.createElement('tr');
                 tr.className = 'hover:bg-gray-50';
-                tr.innerHTML = `
-                    <td class="px-4 py-3 max-w-md" title="${utterance}">${utterance}</td>
-                    <td class="px-4 py-3">${intent}</td>
-                    <td class="px-4 py-3">${confirmedLabel}</td>
-                    <td class="px-4 py-3 ${confidenceClass}" style="color: ${confidenceColor};">${confidence.toFixed(1)}%</td>
-                `;
+
+                if (currentUtteranceView === 'nomatch') {
+                    const turnTypeLabel = row.turnType === 'No Match' ? '🚫 No Match' : '🔇 No Input';
+                    const utteranceDisplay = utterance || '<span class="text-gray-400 italic">(silence)</span>';
+                    tr.innerHTML = `
+                        <td class="px-4 py-3 max-w-md" title="${utterance}">${utteranceDisplay}</td>
+                        <td class="px-4 py-3">${turnTypeLabel}</td>
+                        ${conversationIdCell}
+                    `;
+                } else {
+                    const intent = String(row.x_Intent || row['x_Intent'] || 'Missing');
+                    const confidence = parseFloat(row.x_Intent_Confidence_percent || row['x_Intent_Confidence_percent'] || 0);
+                    const confirmed = row.confirmed || '';
+                    const confirmedLabel = confirmed === 'Yes' ? '✅ Yes' : confirmed === 'No' ? '❌ No' : confirmed === 'Unresolved' ? '⚠️ Unresolved' : '–';
+
+                    const confidenceClass = confidence < 30 ? 'text-red-600 font-semibold' :
+                        confidence < 70 ? 'font-semibold' : 'font-semibold';
+                    const confidenceColor = confidence < 30 ? '#FF6100' :
+                        confidence < 70 ? '#FFD218' : '#196CFF';
+
+                    tr.innerHTML = `
+                        <td class="px-4 py-3 max-w-md" title="${utterance}">${utterance || '-'}</td>
+                        <td class="px-4 py-3">${intent}</td>
+                        <td class="px-4 py-3">${confirmedLabel}</td>
+                        <td class="px-4 py-3 ${confidenceClass}" style="color: ${confidenceColor};">${confidence.toFixed(1)}%</td>
+                        ${conversationIdCell}
+                    `;
+                }
+
                 tbody.appendChild(tr);
             });
 
@@ -782,10 +877,11 @@
 
             // Show message if no results
             if (totalFiltered === 0) {
+                const emptyLabel = currentUtteranceView === 'nomatch' ? 'no-match / no-input turns' : 'utterances';
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
-                    <td colspan="4" class="px-4 py-8 text-center text-gray-400">
-                        No utterances found matching the current filters
+                    <td colspan="${columnCount}" class="px-4 py-8 text-center text-gray-400">
+                        No ${emptyLabel} found matching the current filters
                     </td>
                 `;
                 tbody.appendChild(tr);
